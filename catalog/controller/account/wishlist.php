@@ -1,6 +1,14 @@
 <?php
 namespace Opencart\Catalog\Controller\Account;
+/**
+ * Class Wish List
+ *
+ * @package Opencart\Catalog\Controller\Account
+ */
 class WishList extends \Opencart\System\Engine\Controller {
+	/**
+	 * @return void
+	 */
 	public function index(): void {
 		$this->load->language('account/wishlist');
 
@@ -51,12 +59,18 @@ class WishList extends \Opencart\System\Engine\Controller {
 		$this->response->setOutput($this->load->view('account/wishlist', $data));
 	}
 
+	/**
+	 * @return void
+	 */
 	public function list(): void {
 		$this->load->language('account/wishlist');
 
 		$this->response->setOutput($this->getList());
 	}
 
+	/**
+	 * @return string
+	 */
 	public function getList(): string {
 		$data['wishlist'] = $this->url->link('account/wishlist.list', 'language=' . $this->config->get('config_language') . (isset($this->session->data['customer_token']) ? '&customer_token=' . $this->session->data['customer_token'] : ''));
 		$data['add_to_cart'] = $this->url->link('checkout/cart.add', 'language=' . $this->config->get('config_language'));
@@ -79,15 +93,23 @@ class WishList extends \Opencart\System\Engine\Controller {
 				} else {
 					$image = false;
 				}
-
+// Perubahan 2024 https://github.com/opencart/opencart/pull/12845
 				if ($product_info['quantity'] <= 0) {
-					$stock = $product_info['stock_status'];
-				} elseif ($this->config->get('config_stock_display')) {
-					$stock = $product_info['quantity'];
-				} else {
-					$stock = $this->language->get('text_instock');
-				}
+					$this->load->model('localisation/stock_status');
 
+					$stock_status_info = $this->model_localisation_stock_status->getStockStatus($product_info['stock_status_id']);
+
+					if ($stock_status_info) {
+						$data['stock'] = $stock_status_info['name'];
+					} else {
+						$data['stock'] = '';
+					}
+				} elseif ($this->config->get('config_stock_display')) {
+					$data['stock'] = $product_info['quantity'];
+				} else {
+					$data['stock'] = $this->language->get('text_instock');
+				}
+// Akhir Perubahan Jangan Lupa baris 130
 				if ($this->customer->isLogged() || !$this->config->get('config_customer_price')) {
 					$price = $this->currency->format($this->tax->calculate($product_info['price'], $product_info['tax_class_id'], $this->config->get('config_tax')), $this->session->data['currency']);
 				} else {
@@ -105,7 +127,8 @@ class WishList extends \Opencart\System\Engine\Controller {
 					'thumb'      => $image,
 					'name'       => $product_info['name'],
 					'model'      => $product_info['model'],
-					'stock'      => $stock,
+					// 'stock'      => $stock,
+					'stock'      => $data['stock'],					
 					'price'      => $price,
 					'special'    => $special,
 					'minimum'    => $product_info['minimum'] > 0 ? $product_info['minimum'] : 1,
@@ -119,6 +142,9 @@ class WishList extends \Opencart\System\Engine\Controller {
 		return $this->load->view('account/wishlist_list', $data);
 	}
 
+	/**
+	 * @return void
+	 */
 	public function add(): void {
 		$this->load->language('account/wishlist');
 
@@ -147,9 +173,9 @@ class WishList extends \Opencart\System\Engine\Controller {
 
 			$this->session->data['wishlist'] = array_unique($this->session->data['wishlist']);
 
-			// Store the
+			// Logged in. We store the product ID into the wishlist
 			if ($this->customer->isLogged()) {
-				// Edit customers cart
+				// Edit the customer's cart
 				$this->load->model('account/wishlist');
 
 				$this->model_account_wishlist->addWishlist($product_id);
@@ -168,13 +194,16 @@ class WishList extends \Opencart\System\Engine\Controller {
 		$this->response->setOutput(json_encode($json));
 	}
 
+	/**
+	 * @return void
+	 */
 	public function remove(): void {
 		$this->load->language('account/wishlist');
 
 		$json = [];
 
 		if (isset($this->request->post['product_id'])) {
-			$product_id = $this->request->post['product_id'];
+			$product_id = (int)$this->request->post['product_id'];
 		} else {
 			$product_id = 0;
 		}
